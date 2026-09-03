@@ -480,9 +480,17 @@ impl TextContent {
         seen
     }
 
-    pub fn add_paragraph(&mut self, paragraph: Paragraph) {
+    pub fn add_paragraph(&mut self, mut paragraph: Paragraph) {
+        let index = self.paragraphs.len() as u32;
+        paragraph.set_span_positions(index);
         self.paragraphs.push(paragraph);
         self.content_version = self.content_version.wrapping_add(1);
+    }
+
+    pub fn reset_span_positions(&mut self) {
+        for (index, paragraph) in self.paragraphs.iter_mut().enumerate() {
+            paragraph.set_span_positions(index as u32);
+        }
     }
 
     pub fn paragraphs(&self) -> &[Paragraph] {
@@ -1269,6 +1277,12 @@ impl Paragraph {
         &mut self.children
     }
 
+    fn set_span_positions(&mut self, index: u32) {
+        for (span_index, span) in self.children.iter_mut().enumerate() {
+            span.set_position(index, span_index as u32);
+        }
+    }
+
     fn char_count(&self) -> usize {
         self.children
             .iter()
@@ -1434,6 +1448,8 @@ pub struct TextSpan {
     pub text_transform: Option<TextTransform>,
     pub text_direction: TextDirection,
     pub fills: Vec<shapes::Fill>,
+    pub paragraph_position: u32,
+    pub span_position: u32,
 }
 
 impl TextSpan {
@@ -1463,11 +1479,18 @@ impl TextSpan {
             font_weight,
             font_variant_id,
             fills,
+            paragraph_position: u32::MAX,
+            span_position: u32::MAX,
         }
     }
 
     pub fn set_text(&mut self, text: String) {
         self.text = text;
+    }
+
+    pub fn set_position(&mut self, paragraph: u32, span: u32) {
+        self.paragraph_position = paragraph;
+        self.span_position = span;
     }
 
     pub fn to_style(
