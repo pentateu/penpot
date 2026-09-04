@@ -114,9 +114,19 @@
 
 (defonce ^:private jwks-cache (atom {:keys {} :expires-at 0}))
 
+;; Session handler cfg carries no HTTP client (::manager + ::db/pool only),
+;; so resolve-client would throw "invalid arguments". Keep one shared client
+;; for JWKS fetches instead of threading integrant state through auth.
+(defonce ^:private shared-http-client
+  (delay (http/build-client {:connect-timeout 10000 :follow-redirects :never})))
+
+(defn- req-client
+  [cfg]
+  (or (::http/client cfg) @shared-http-client))
+
 (defn- fetch-jwks-keys
   [cfg jwks-uri]
-  (let [{:keys [status body]} (http/req cfg {:method :get :uri jwks-uri} {:skip-ssrf-check? true})]
+  (let [{:keys [status body]} (http/req (req-client cfg) {:method :get :uri jwks-uri} {:skip-ssrf-check? true})]
     (if (= 200 status)
       (let [data (json/decode body)
             keys (:keys data)]
