@@ -187,13 +187,9 @@
             (l/inf :hint "jwt: no matching JWKS key" :kid kid :alg alg-str :jwks-keys (keys jwks))
             (throw (ex-info "no jwks key" {:kid kid})))
           (l/inf :hint "jwt: about to unsign" :pkey-type (type pkey))
-          ;; Diagnose: bound the call. A timeout here proves a hang inside
-          ;; buddy/JCA; anything else flows to the normal checks below.
-          (let [payload (let [fut (future (jwt/unsign token pkey {:alg :RS256}))]
-                          (l/inf :hint "jwt: unsign future started")
-                          (let [res (deref fut 8000 ::unsign-timeout)]
-                            (l/inf :hint "jwt: unsign future done" :timeout? (= res ::unsign-timeout) :nil? (nil? res))
-                            (when-not (= res ::unsign-timeout) res)))
+          ;; Direct call (no future): a hang here delays the response and
+          ;; proves where time goes; throw/return flow to existing logs.
+          (let [payload (jwt/unsign token pkey {:alg :RS256})
                 _ (l/inf :hint "jwt: unsign returned" :nil-payload (nil? payload))
                 iss (:iss payload)
                 aud (:aud payload)
