@@ -1,0 +1,20 @@
+# ISWE Penpot backend — RS256-only JWT via Authentik
+# Pinned base: stock 2.17 (amd64) — never floating tags.
+FROM penpotapp/backend:2.17@sha256:770b55f6e51bfcee49152b30858ca6a47143256de8d43953a50b952b5c60bb55
+
+# Overlay ISWE JWT source (built from iswe/main SHA — see iswe/README.md).
+# Clojure ships .clj source inside penpot.jar, so patch = unpack + overlay + repack.
+COPY backend/src/app/auth.clj /tmp/iswe-patch/app/auth.clj
+COPY backend/src/app/http/session.clj /tmp/iswe-patch/app/http/session.clj
+COPY backend/src/app/config.clj /tmp/iswe-patch/app/config.clj
+COPY iswe/patch-jar.sh /tmp/iswe-patch/patch-jar.sh
+
+RUN chmod +x /tmp/iswe-patch/patch-jar.sh \
+ && /tmp/iswe-patch/patch-jar.sh /opt/penpot/backend/penpot.jar /tmp/iswe-patch \
+ && rm -rf /tmp/iswe-patch \
+ && ls -lh /opt/penpot/backend/penpot.jar
+
+# Runtime env (values come from /opt/penpot/.env allowlist — see compose):
+# PENPOT_JWT_VERIFY_URL / PENPOT_JWT_ISSUER / PENPOT_JWT_AUDIENCE
+# PENPOT_OIDC_JWKS / PENPOT_OIDC_JWKS_URI / PENPOT_OIDC_BASE_URI
+# Flags must include enable-jwt-api + enable-login-with-oidc.

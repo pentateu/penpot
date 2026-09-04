@@ -14,15 +14,18 @@
    [app.common.uuid :as uuid]
    [app.config :as cf]
    [app.db :as db]
-   [app.db.sql :as sql]
-   [app.http :as-alias http]
+   [app.auth :as auth]
+  [app.db.sql :as sql]
+  [app.http :as-alias http]
    [app.http.auth :as-alias http.auth]
    [app.http.session.tasks :as-alias tasks]
    [app.main :as-alias main]
    [app.setup :as-alias setup]
    [app.setup.clock :as clock]
    [app.tokens :as tokens]
-   [integrant.core :as ig]
+  [clojure.string :as str]
+  [cuerdas.core :as cstr]
+  [integrant.core :as ig]
    [yetti.request :as yreq]
    [yetti.response :as yres]))
 
@@ -248,7 +251,7 @@
              (neg? (compare default-renewal-max-age elapsed))))))
 
 (defn- wrap-authz
-  [handler {:keys [::manager] :as cfg}]
+  [handler {:keys [::manager ::db/pool] :as cfg}]
   (assert (manager? manager) "expected valid session manager")
   (fn [request]
     (let [{:keys [type token claims metadata]} (get request ::http/auth-data)]
@@ -279,15 +282,46 @@
             response))
 
         (= type :bearer)
-        (let [session (case (:ver metadata)
-                        ;; BACKWARD COMPATIBILITY WITH OLD TOKENS
-                        0 (read-session manager token)
-                        1 (some->> (:sid claims) (read-session manager))
-                        nil)
-              request (cond-> request
+        (let [;; INFRA-SSO-2: JWT branch first (enable-jwt-api), with old token fallback for 2 weeks
+              jwt-enabled? (contains? cf/flags :jwt-api)
+              jwt-profile
+              (when jwt-enabled?
+                (try
+                  (when-let [payload (auth/verify-jwt cfg token)]
+                    (let [email (or (:email payload)
+                                    (:preferred_username payload)
+                                    (:upn payload)
+                                    "")
+                          sub (:sub payload)
+                          email (if (and (str/blank? email) sub (str/includes? sub "@")) sub email)
+                          email (some-> email str/trim cstr/lower)]
+                      (when (and email (str/includes? email "@"))
+                        ;; email -> profile lookup (case-insensitive)
+                        (let [profile (try (db/exec-one! cfg ["SELECT id, email FROM profile WHERE lower(email) = lower(?)" email]) (catch Throwable _ (try (db/exec-one! pool ["SELECT id, email FROM profile WHERE lower(email) = lower(?)" email]) (catch Throwable _ nil))))]
+                          (if profile
+                            (do (l/inf :hint "jwt: Bearer verified, mapped to profile" :email email :profile-id (str (:id profile))) profile)
+                            (do (l/inf :hint "jwt: Bearer verified but no profile for email" :email email) nil))))))
+                  (catch Throwable cause
+                    (l/dbg :hint "jwt: Bearer verification error, fallback to legacy" :cause cause)
+                    nil)))
+              ;; Legacy session fallback (keep for 2 weeks)
+              session (when-not jwt-profile
+                        (case (:ver metadata)
+                          0 (read-session manager token)
+                          1 (some->> (:sid claims) (read-session manager))
+                          nil))
+              request (cond
+                        jwt-profile
+                        (-> request
+                            (assoc ::profile-id (:id jwt-profile))
+                            (assoc ::jwt-email (:email jwt-profile)))
+
                         (some? session)
-                        (-> (assoc ::profile-id (:profile-id session))
-                            (assoc ::session session)))]
+                        (-> request
+                            (assoc ::profile-id (:profile-id session))
+                            (assoc ::session session))
+
+                        :else request)]
           (handler request))
 
         :else

@@ -218,6 +218,12 @@
     [:oidc-email-attr {:optional true} :string]
     [:oidc-name-attr {:optional true} :string]
 
+    ;; INFRA-SSO-2/3: JWT via Authentik (JWKS discovery, RS256-only)
+    [:jwt-verify-url {:optional true} :string]
+    [:jwt-issuer {:optional true} :string]
+    [:jwt-audience {:optional true} :string]
+    [:oidc-jwks {:optional true} :string]
+
     [:ldap-attrs-email {:optional true} :string]
     [:ldap-attrs-fullname {:optional true} :string]
     [:ldap-attrs-username {:optional true} :string]
