@@ -187,10 +187,13 @@
             (l/inf :hint "jwt: no matching JWKS key" :kid kid :alg alg-str :jwks-keys (keys jwks))
             (throw (ex-info "no jwks key" {:kid kid})))
           (l/inf :hint "jwt: about to unsign" :pkey-type (type pkey))
-          (let [payload (try (jwt/unsign token pkey {:alg :RS256})
-                             (catch Throwable u
-                               (l/inf :hint "jwt: unsign threw" :cause (ex-message u))
-                               (throw u)))
+          ;; Diagnose: bound the call. A timeout here proves a hang inside
+          ;; buddy/JCA; anything else flows to the normal checks below.
+          (let [payload (let [fut (future (jwt/unsign token pkey {:alg :RS256}))]
+                          (l/inf :hint "jwt: unsign future started")
+                          (let [res (deref fut 8000 ::unsign-timeout)]
+                            (l/inf :hint "jwt: unsign future done" :timeout? (= res ::unsign-timeout) :nil? (nil? res))
+                            (when-not (= res ::unsign-timeout) res)))
                 _ (l/inf :hint "jwt: unsign returned" :nil-payload (nil? payload))
                 iss (:iss payload)
                 aud (:aud payload)
