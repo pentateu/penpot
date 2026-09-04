@@ -152,7 +152,9 @@
             leeway 60
             header (try (jwt/decode-header token) (catch Throwable _ nil))
             alg (:alg header)
-            alg-str (when alg (name alg))]
+            ;; Decode libraries vary in case (observed "rs256" live).
+            ;; Normalize before the exact allow-list check.
+            alg-str (when alg (str/upper-case (name alg)))]
         ;; RS256-only: reject none, HS*, and all other algs before any verify.
         (when (not= alg-str "RS256")
           (l/inf :hint "jwt: unsupported alg (RS256-only)" :alg alg-str)
