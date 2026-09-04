@@ -159,6 +159,7 @@
   (when (and token (string? token) (not (str/blank? token)))
     (l/inf :hint "jwt: Bearer presented" :have-header (some? (try (jwt/decode-header token) (catch Throwable _ nil))))
     (try
+      (l/inf :hint "jwt: inside try")
       (let [issuer (jwt-issuer)
             audience (jwt-audience)
             leeway 60
