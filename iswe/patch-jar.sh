@@ -1,41 +1,35 @@
 #!/bin/sh
-# Patch penpot.jar with ISWE JWT source: unpack + overlay + repack via python3 zipfile.
+# Patch penpot.jar with ISWE JWT source via entry-copy (preserve all entries).
 # Usage: patch-jar.sh <penpot.jar path> <patch dir with app/auth.clj app/http/session.clj app/config.clj>
-# Idempotent, reversible (keep a .orig copy before first run). No unzip/zip/jar needed.
+# Replaces only the 3 ISWE files, copies all other entries byte-identical
+# (preserves order, compression, manifest-first). No .orig kept in image.
 set -eu
 JAR="${1:?jar path required}"
 PATCH_DIR="${2:?patch dir required}"
-if [ ! -e "${JAR}.orig" ]; then
-  cp "$JAR" "${JAR}.orig"
-  echo "saved orig ${JAR}.orig"
-fi
 PATCH_DIR="$PATCH_DIR" JAR="$JAR" python3 - <<'PY'
-import os, shutil, tempfile, zipfile
+import os, zipfile
 jar_path = os.environ["JAR"]
 patch_dir = os.environ["PATCH_DIR"]
-work = tempfile.mkdtemp()
-try:
-    with zipfile.ZipFile(jar_path, "r") as z:
-        z.extractall(work)
-    for rel in ["app/auth.clj", "app/http/session.clj", "app/config.clj"]:
-        src = os.path.join(patch_dir, rel)
-        dst = os.path.join(work, rel)
-        shutil.copyfile(src, dst)
-        print(f"overlaid {rel}")
-    new_path = jar_path + ".new"
-    with zipfile.ZipFile(jar_path, "r") as zin:
-        names = zin.namelist()
-        comments = {n: zin.getinfo(n).comment for n in names}
-    with zipfile.ZipFile(new_path, "w", zipfile.ZIP_DEFLATED) as zout:
-        for root, _, files in os.walk(work):
-            for fn in files:
-                full = os.path.join(root, fn)
-                arc = os.path.relpath(full, work)
-                zout.write(full, arc)
-    os.replace(new_path, jar_path)
-    print(f"patched {jar_path}")
-finally:
-    shutil.rmtree(work, ignore_errors=True)
+replace = {
+    "app/auth.clj": os.path.join(patch_dir, "app/auth.clj"),
+    "app/http/session.clj": os.path.join(patch_dir, "app/http/session.clj"),
+    "app/config.clj": os.path.join(patch_dir, "app/config.clj"),
+}
+for arc, src in replace.items():
+    assert os.path.isfile(src), f"missing patch file {src}"
+new_path = jar_path + ".new"
+with zipfile.ZipFile(jar_path, "r") as zin:
+    with zipfile.ZipFile(new_path, "w") as zout:
+        for item in zin.infolist():
+            data = zin.read(item.filename)
+            if item.filename in replace:
+                with open(replace[item.filename], "rb") as f:
+                    data = f.read()
+                print(f"overlaid {item.filename}")
+            # Preserve ZipInfo (order, compress_type, date, perms) verbatim.
+            zout.writestr(item, data)
+os.replace(new_path, jar_path)
+print(f"patched {jar_path}")
 PY
 echo "patched $JAR"
 ls -lh "$JAR"
