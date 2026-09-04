@@ -168,6 +168,7 @@
             ;; Decode libraries vary in case (observed "rs256" live).
             ;; Normalize before the exact allow-list check.
             alg-str (when alg (str/upper-case (name alg)))]
+        (l/inf :hint "jwt: bindings" :alg-str alg-str :kid (:kid header) :issuer issuer :audience audience)
         ;; RS256-only: reject none, HS*, and all other algs before any verify.
         (when (not= alg-str "RS256")
           (l/inf :hint "jwt: unsupported alg (RS256-only)" :alg alg-str)
