@@ -9,9 +9,11 @@ Stock `penpotapp/backend:2.17`:
 - Id `sha256:770b55f6e51bfcee49152b30858ca6a47143256de8d43953a50b952b5c60bb55`
 - Digest `penpotapp/backend@sha256:770b55f6e51bfcee49152b30858ca6a47143256de8d43953a50b952b5c60bb55`
 
--iswe `penpotapp/backend:2.17-iswe` (pre-ghcr, aorus-local):
-- Id `sha256:e389b9712b49c9d6a3258ebb819cf8aca8cee85fec030cbe231b11afe7ba61f6`
-- One top layer: `COPY penpot.jar.patched.final /opt/penpot/backend/penpot.jar` (109MB).
+-iswe `ghcr.io/pentateu/penpot-backend:2.17-iswe` (built 2026-09-04 from this SHA):
+- Id `sha256:6e9b5085c4dbbcd9365b8809bf83685884b012bf21741084c90b2eb98caba4b7`
+- Digest `ghcr.io/pentateu/penpot-backend@sha256:6e9b5085c4dbbcd9365b8809bf83685884b012bf21741084c90b2eb98caba4b7`
+  (local-only until ghcr push; previous aorus-local `e389b971...` kept for rollback)
+- Top layer: patched `penpot.jar` (entry-copy, 53796 entries, manifest-first).
 - All lower layers identical to stock (see `docker history`).
 
 Patched files in jar (decompiled 2026-09-04, `~/penpot-backups/jar-src`):
