@@ -215,5 +215,7 @@
             (l/inf :hint "jwt: verified" :iss iss :aud aud :sub (:sub payload) :email (or (:email payload) (:preferred_username payload)))
             payload)))
       (catch Throwable cause
-        (l/dbg :hint "jwt: verification failed" :cause cause)
+        ;; Loud on purpose: a silent nil here cost a full debug cycle.
+        ;; Server-side log only — nothing leaks to the caller.
+        (l/wrn :hint "jwt: verification failed" :cause (ex-message cause) :data (ex-data cause))
         nil))))
