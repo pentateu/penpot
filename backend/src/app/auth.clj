@@ -142,6 +142,7 @@
 
 (defn- get-jwks
   [cfg]
+  (l/inf :hint "jwt: get-jwks entry")
   (let [now (inst-ms (ct/now))
         {:keys [keys expires-at]} @jwks-cache]
     (if (and (seq keys) (< now expires-at))
