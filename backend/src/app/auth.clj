@@ -17,7 +17,8 @@
    [buddy.sign.jwk :as jwk]
    [buddy.sign.jwt :as jwt]
    [clojure.string :as str]
-   [cuerdas.core :as cstr]))
+   [cuerdas.core :as cstr]
+   [java-http-clj.core :as jhttp]))
 
 (def ^:private default-options
   {:alg :argon2id
@@ -115,10 +116,10 @@
 (defonce ^:private jwks-cache (atom {:keys {} :expires-at 0}))
 
 ;; Session handler cfg carries no HTTP client (::manager + ::db/pool only),
-;; so resolve-client would throw "invalid arguments". Keep one shared client
-;; for JWKS fetches instead of threading integrant state through auth.
+;; so client/resolve-client would throw "invalid arguments". Keep one shared
+;; java-http client for JWKS fetches (same builder call as app.http.client).
 (defonce ^:private shared-http-client
-  (delay (http/build-client {:connect-timeout 10000 :follow-redirects :never})))
+  (delay (jhttp/build-client {:connect-timeout 10000 :follow-redirects :never})))
 
 (defn- req-client
   [cfg]
