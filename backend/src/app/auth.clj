@@ -158,7 +158,7 @@
   "Verify Bearer JWT via JWKS. Returns payload map or nil. RS256-only, exact iss/aud, exp required, nbf enforced, 60s leeway."
   [cfg token]
   (when (and token (string? token) (not (str/blank? token)))
-    (l/inf :hint "jwt: Bearer presented" :have-header (some? (try (jwt/decode-header token) (catch Throwable _ nil))))
+    (l/inf :hint "jwt: Bearer presented" :have-header (some? (try (jwt/decode-header token) (catch Throwable _ nil))) :token-len (count token))
     (try
       (l/inf :hint "jwt: inside try")
       (let [issuer (jwt-issuer)
