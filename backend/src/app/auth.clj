@@ -186,7 +186,12 @@
           (when-not pkey
             (l/inf :hint "jwt: no matching JWKS key" :kid kid :alg alg-str :jwks-keys (keys jwks))
             (throw (ex-info "no jwks key" {:kid kid})))
-          (let [payload (jwt/unsign token pkey {:alg :RS256})
+          (l/inf :hint "jwt: about to unsign" :pkey-type (type pkey))
+          (let [payload (try (jwt/unsign token pkey {:alg :RS256})
+                             (catch Throwable u
+                               (l/inf :hint "jwt: unsign threw" :cause (ex-message u))
+                               (throw u)))
+                _ (l/inf :hint "jwt: unsign returned" :nil-payload (nil? payload))
                 iss (:iss payload)
                 aud (:aud payload)
                 exp (:exp payload)
